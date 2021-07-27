@@ -3,90 +3,126 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\Appointment;
 use App\Models\Order;
 use App\Models\TempOrder;
-
-
+use PayPal\Rest\ApiContext;
+use PayPal\Auth\OAuthTokenCredential;
+use PayPal\Api\Amount;
+use PayPal\Api\Details;
+use PayPal\Api\Item;
+use PayPal\Api\ItemList;
+use PayPal\Api\Payer;
+use PayPal\Api\Payment;
+use PayPal\Api\RedirectUrls;
+use PayPal\Api\Transaction;
+use PayPal\Api\PaymentExecution;
 class PayPalPaymentController extends Controller
 {
 
     /*
      * Paypal Gateway
      */
-    public static function process($paypalConfig , $trx, $request)
+    public static function process($totalAmount)
     {
-        $paypalAcc = json_decode(json_encode($paypalConfig));
-
-        $orders = TempOrder::where('temp_trx', $trx)->get();
-
-        $totalAmount = $orders->sum('amount');
+       
+        $apiContext = new ApiContext(
+            new OAuthTokenCredential(
+               
+              env('PAYPAL_CLIENT_ID',''),
+              env('PAYPAL_CLIENT_SECRET','')
+            )
+          );
 
        
 
-        $val['cmd'] = '_xclick';
-        $val['business'] = trim($paypalAcc->paypal_email);
-        $val['cbt'] = 'test';
-        $val['currency_code'] = "USD";
-        $val['quantity'] = 1;
-        $val['item_name'] = "Payment To test Account";
-        $val['custom'] = "$trx";
-        $val['amount'] = round($totalAmount,2);
-        $val['return'] = route('payment.success');
-        $val['cancel_return'] = route('home');
-        $val['notify_url'] = route('paypal');
-        $send['val'] = $val;
-        $send['view'] = 'paypal';
-        $send['method'] = 'post';
-        $send['url'] = 'https://www.sandbox.paypal.com/';
+        $payer = new Payer();
+        $payer->setPaymentMethod("paypal");
+
+        // Set redirect URLs
+        $redirectUrls = new RedirectUrls();
+        $redirectUrls->setReturnUrl(route('paypal'))
+        ->setCancelUrl(route('home'));
+
+        
+     // Set payment amount
+        $amount = new Amount();
+        $amount->setCurrency("USD")
+        ->setTotal($totalAmount);
+        
+        // Set transaction object
+        $transaction = new Transaction();
+        $transaction->setAmount($amount)
+        ->setDescription("Pay for Doctor Booking");
+
+        // Create the full payment object
+        $payment = new Payment();
+        $payment->setIntent('sale')
+        ->setPayer($payer)
+        ->setRedirectUrls($redirectUrls)
+        ->setTransactions(array($transaction));
 
 
-        return json_encode($send);
+                // Create payment with valid API context
+        try {
+            $payment->create($apiContext);
+        
+            // Get PayPal redirect URL and redirect the customer
+            $approvalUrl = $payment->getApprovalLink();
+        
+            // Redirect the customer to $approvalUrl
+        } catch (\PayPal\Exception\PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die($ex);
+        } catch (\Exception $ex) {
+            die($ex);
+        }
+       
+        return $payment;
     }
 
     public function ipn()
     {
 
-        $raw_post_data = file_get_contents('php://input');
-        $raw_post_array = explode('&', $raw_post_data);
-        $myPost = array();
-        foreach ($raw_post_array as $keyval) {
-            $keyval = explode('=', $keyval);
-            if (count($keyval) == 2)
-                $myPost[$keyval[0]] = urldecode($keyval[1]);
-        }
+        $apiContext = new ApiContext(
+            new OAuthTokenCredential(
+                env('PAYPAL_CLIENT_ID',''),
+                env('PAYPAL_CLIENT_SECRET','')
+            )
+          );
 
-        $req = 'cmd=_notify-validate';
-        foreach ($myPost as $key => $value) {
-            $value = urlencode(stripslashes($value));
-            $req .= "&$key=$value";
-            $details[$key] = $value;
-        }
-        
-        $paypalURL = "https://ipnpb.sandbox.paypal.com/cgi-bin/webscr?"; // use for sandbox text
-        // $paypalURL = "https://ipnpb.paypal.com/cgi-bin/webscr?";
-        $callUrl = $paypalURL . $req;
-        $verify = $this->curlContent($callUrl);
-        
-        if ($verify == "VERIFIED") {
-            $order = Order::where('order_id', $_POST['custom'])->orderBy('id', 'DESC')->first();
-            $order->payment_status = 'completed';
-            $order->save();
+                // Get payment object by passing paymentId
+        $paymentId = $_GET['paymentId'];
+        $payment = Payment::get($paymentId, $apiContext);
+        $payerId = $_GET['PayerID'];
 
-            if ($order->payment_status == 'completed') {
-                AppointmentController::orderBooked($order->order_id);
+        // Execute payment with payer ID
+        $execution = new PaymentExecution();
+        $execution->setPayerId($payerId);
+          
+        try {
+        // Execute payment
+        $result = $payment->execute($execution, $apiContext);
+            if($result->state == 'approved'){
+
+                $order = Order::where('order_id',session('trx'))->first();
+                $order->payment_status = 'Completed';
+                $order->save();
+
+                AppointmentController::orderBooked(session('trx'));
+
             }
+
+            return redirect()->route('payment.success');
+
+        } catch (\PayPal\Exception\PayPalConnectionException $ex) {
+            echo $ex->getCode();
+            echo $ex->getData();
+            die($ex);
+            } catch (\Exception $ex) {
+            die($ex);
         }
     }
-
-    private function curlContent($url)
-        {
-            $ch = curl_init();
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-            curl_setopt($ch, CURLOPT_URL, $url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            $result = curl_exec($ch);
-            curl_close($ch);
-            return $result;
-        }
 
 }

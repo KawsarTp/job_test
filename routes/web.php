@@ -14,9 +14,10 @@ Route::get('time/schedule', [AppointmentController::class,'findTimeSchedule'])->
 Route::get('delete', [AppointmentController::class,'delete'])->name('delete');
 
 
-Route::post('make/payment', [AppointmentController::class,'pay'])->name('make.payment');
-Route::post('paypal', [PayPalPaymentController::class,'ipn'])->name('paypal');
+Route::get('make/payment', [AppointmentController::class,'pay'])->name('make.payment');
 
-Route::get('payment/success',[AppointmentController::class, ''])->name('payment.success');
+Route::get('paypal', [PayPalPaymentController::class,'ipn'])->name('paypal');
+
+Route::get('payment/success',[AppointmentController::class, 'paymentSuccess'])->name('payment.success');
 
 

@@ -4,8 +4,7 @@
 
  <div class="col-md-5 col-lg-5">
                 <h4>Create Appointment</h4>
-                <form action="" method="post" id="reset-form">
-                @csrf
+                <form action="" method="get" id="reset-form">
                     <div class="row">
                         <div class="col-md-12 mb-3">
                             <label>Select Department</label>
@@ -47,8 +46,8 @@
             <div class="col-md-7 col-lg-7 orders">
                 
                 <h4>Added Appointment</h4>
- <form action="{{route('make.payment')}}" method="post" class="mt-4">
- @csrf
+ <form action="{{route('make.payment')}}" method="get" class="mt-4">
+
                     <div class="table-responsive">
                         <table class="table table-bordered">
                             <tr>
@@ -166,13 +165,13 @@
 
                     $('.schedule-not-available').removeClass('d-none');
                     $('.schedule-not-available').text('Schedule Not Found for '+ response.weekname)
-                    $('.doctor-not-available, .schedule-time, .available, .form-submit').addClass('d-none');
+                    $('.doctor-not-available, .schedule-time, .available, .form-submit, .quota').addClass('d-none');
                     
                     return false;
 
                  }else if(response.notAvailable){
 
-                    $('.schedule-not-available, .schedule-time, .available, .form-submit').addClass('d-none');
+                    $('.schedule-not-available, .schedule-time, .available, .form-submit, .quota').addClass('d-none');
                     $('.doctor-not-available').removeClass('d-none');
 
                     return false;

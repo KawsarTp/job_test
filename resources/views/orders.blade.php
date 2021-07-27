@@ -1,6 +1,5 @@
  <h4>Added Appointment</h4>
- <form action="{{route('make.payment')}}" method="post" class="mt-4">
-  @csrf
+ <form action="{{route('make.payment')}}" method="get" class="mt-4">
                     <div class="table-responsive">
                         <table class="table table-bordered">
                             <tr>

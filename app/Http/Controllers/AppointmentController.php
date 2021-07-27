@@ -174,9 +174,10 @@ class AppointmentController extends Controller
 
         $controller = PayPalPaymentController::class;
 
-        $paypalConfig = [
-            'paypal_email' => env('PAYPAL_EMAIL',''),
-        ] ;
+       
+       
+        $data = $controller::process($totalAmount);
+        $data = json_decode($data);
 
         Order::create([
             'order_id' => $trx,
@@ -186,12 +187,10 @@ class AppointmentController extends Controller
             'fee_amount' => $fee,
             'net_amount' => $totalAmount - $fee,
             'payment_status' => '',
-            'transaction_id' => '' 
+            'transaction_id' => $data->id 
         ]);
-       
-        $data = $controller::process($paypalConfig, $trx, $request);
-        $data = json_decode($data);
-        return view($data->view, compact('data'));
+
+        return redirect()->to($data->links[1]->href);
 
         
     }
@@ -202,10 +201,11 @@ class AppointmentController extends Controller
         $tempOrder = TempOrder::where('temp_trx', $trx)->get();
 
         foreach($tempOrder as $appointment){
+           
             Appointment::create([
                 'order_id' => $appointment->temp_trx,
                 'doctor_id' => $appointment->doctor_id,
-                'day_id' => $appointment->schedule->day->name,
+                'day_id' => $appointment->schedule->day->id,
                 'schedule_id' => $appointment->schedule_id,
                 'appoint_date' => $appointment->order_date,
                 'fee' => $appointment->amount
@@ -216,5 +216,10 @@ class AppointmentController extends Controller
         
         session()->forget('trx');
         
+    }
+
+    public function paymentSuccess()
+    {
+        return view('payment_success');
     }
 }
